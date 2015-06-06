@@ -160,7 +160,9 @@ int main() {
 
 	// Mine blocks until program is interrupted
 	// Each iteration of the loop should take 1-3 seconds
-	while (1) {
+	int limiter = 0;
+	while (limiter < 8) {
+		limiter++;
 		// Start timing this iteration
 		clock_t startTime = clock();
 

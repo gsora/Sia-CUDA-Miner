@@ -75,20 +75,12 @@ void memcpy( __private void *dest, __private const void *src, __private size_t n
 		dest8[i] = src8[i];
 }
 
-// the code taken from offical Blake2b C reference:
-#ifndef __BLAKE2B__
-#define __BLAKE2B__
-
 // blake2.h
 
 #if defined(_MSC_VER)
 #define ALIGN(x) __declspec(align(x))
 #else
 #define ALIGN(x) __attribute__((aligned(x)))
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
   enum blake2b_constant
@@ -129,78 +121,29 @@ extern "C" {
 #pragma pack(pop)
 
   // Streaming API
-  int blake2b_init( __private blake2b_state *S );
-  int blake2b_init_key( __private blake2b_state *S, __private const uchar outlen, __private const void *key, __private const uchar keylen );
-  int blake2b_init_param( __private blake2b_state *S, __private const blake2b_param *P );
   int blake2b_update( __private blake2b_state *S, __private const uchar *in, __private ulong inlen );
   int blake2b_final( __private blake2b_state *S, __private uchar *out );
-
-#if defined(__cplusplus)
-}
-#endif
 
 // blake2-impl.c
 
 static inline uint load32( __private const void *src )
 {
-#if defined(NATIVE_LITTLE_ENDIAN)
   return *( uint * )( src );
-#else
-  const uchar *p = ( uchar * )src;
-  uint w = *p++;
-  w |= ( uint )( *p++ ) <<  8;
-  w |= ( uint )( *p++ ) << 16;
-  w |= ( uint )( *p++ ) << 24;
-  return w;
-#endif
 }
 
 static inline ulong load64( __private const void *src )
 {
-#if defined(NATIVE_LITTLE_ENDIAN)
   return *( ulong * )( src );
-#else
-  const uchar *p = ( uchar * )src;
-  ulong w = *p++;
-  w |= ( ulong )( *p++ ) <<  8;
-  w |= ( ulong )( *p++ ) << 16;
-  w |= ( ulong )( *p++ ) << 24;
-  w |= ( ulong )( *p++ ) << 32;
-  w |= ( ulong )( *p++ ) << 40;
-  w |= ( ulong )( *p++ ) << 48;
-  w |= ( ulong )( *p++ ) << 56;
-  return w;
-#endif
 }
 
 static inline void store32( __private void *dst, __private uint w )
 {
-#if defined(NATIVE_LITTLE_ENDIAN)
   *( uint * )( dst ) = w;
-#else
-  uchar *p = ( uchar * )dst;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w;
-#endif
 }
 
 static inline void store64( __private void *dst, __private ulong w )
 {
-#if defined(NATIVE_LITTLE_ENDIAN)
   *( ulong * )( dst ) = w;
-#else
-  uchar *p = ( uchar * )dst;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w;
-#endif
 }
 
 static inline ulong load48( __private const void *src )
@@ -313,80 +256,6 @@ static inline int blake2b_increment_counter( __private blake2b_state *S, __priva
 {
 	S->t[0] += inc;
 	S->t[1] += ( S->t[0] < inc );
-	return 0;
-}
-
-static inline int blake2b_init0( __private blake2b_state *S )
-{
-	memset( S, 0, sizeof( blake2b_state ) );
-
-	for( int i = 0; i < 8; ++i ) S->h[i] = blake2b_IV[i];
-
-	return 0;
-}
-
-// init xors IV with input parameter block
-int blake2b_init_param( __private blake2b_state *S, __private const blake2b_param *P )
-{
-	blake2b_init0( S );
-	uchar *p = ( uchar * )( P );
-
-	// IV XOR ParamBlock
-	for( size_t i = 0; i < 8; ++i )
-		S->h[i] ^= load64( p + sizeof( S->h[i] ) * i );
-
-	return 0;
-}
-
-
-int blake2b_init( __private blake2b_state *S )
-{
-	blake2b_param P[1];
-
-	P->digest_length = 32;
-	P->key_length = 0;
-	P->fanout = 1;
-	P->depth = 1;
-	store32( &P->leaf_length, 0 );
-	store64( &P->node_offset, 0 );
-	P->node_depth = 0;
-	P->inner_length = 0;
-	memset( P->reserved, 0, sizeof( P->reserved ) );
-	memset( P->salt,		 0, sizeof( P->salt ) );
-	memset( P->personal, 0, sizeof( P->personal ) );
-	return blake2b_init_param( S, P );
-}
-
-
-int blake2b_init_key( __private blake2b_state *S, __private const uchar outlen, __private const void *key, __private const uchar keylen )
-{
-	blake2b_param P[1];
-
-	if ( ( !outlen ) || ( outlen > BLAKE2B_OUTBYTES ) ) return -1;
-
-	if ( !key || !keylen || keylen > BLAKE2B_KEYBYTES ) return -1;
-
-	P->digest_length = outlen;
-	P->key_length		= keylen;
-	P->fanout				= 1;
-	P->depth				 = 1;
-	store32( &P->leaf_length, 0 );
-	store64( &P->node_offset, 0 );
-	P->node_depth		= 0;
-	P->inner_length	= 0;
-	memset( P->reserved, 0, sizeof( P->reserved ) );
-	memset( P->salt,		 0, sizeof( P->salt ) );
-	memset( P->personal, 0, sizeof( P->personal ) );
-
-	if( blake2b_init_param( S, P ) < 0 ) return -1;
-
-	{
-		uchar block[BLAKE2B_BLOCKBYTES];
-		memset( block, 0, BLAKE2B_BLOCKBYTES );
-		memcpy( block, key, keylen );
-		blake2b_update( S, block, BLAKE2B_BLOCKBYTES );
-		secure_zero_memory( block, BLAKE2B_BLOCKBYTES ); // Burn the key from stack
-	}
 	return 0;
 }
 
@@ -514,11 +383,27 @@ int blake2b( __private uchar *out, __private uchar *in )
 {
 	private blake2b_state S[1];
 
-	blake2b_init( S );
+	blake2b_param P[1];
+	P->digest_length = 32;
+	P->key_length = 0;
+	P->fanout = 1;
+	P->depth = 1;
+	store32( &P->leaf_length, 0 );
+	store64( &P->node_offset, 0 );
+	P->node_depth = 0;
+	P->inner_length = 0;
+	memset( P->reserved, 0, sizeof( P->reserved ) );
+	memset( P->salt,		 0, sizeof( P->salt ) );
+	memset( P->personal, 0, sizeof( P->personal ) );
+	memset( S, 0, sizeof( blake2b_state ) );
+	for( int i = 0; i < 8; ++i ) S->h[i] = blake2b_IV[i];
+	uchar *p = ( uchar * )( P );
+
+	// IV XOR ParamBlock
+	for( size_t i = 0; i < 8; ++i )
+		S->h[i] ^= load64( p + sizeof( S->h[i] ) * i );
 
 	blake2b_update( S, in, 80 );
 	blake2b_final( S, out );
 	return 0;
 }
-
-#endif
