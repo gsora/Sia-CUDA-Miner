@@ -122,7 +122,6 @@ void memcpy( __private void *dest, __private const void *src, __private size_t n
 
   // Streaming API
   int blake2b_update( __private blake2b_state *S, __private const uchar *in, __private ulong inlen );
-  int blake2b_final( __private blake2b_state *S, __private uchar *out );
 
 // blake2-impl.c
 
@@ -187,14 +186,6 @@ static inline uint rotr32( __private const uint w, __private const unsigned c )
 static inline ulong rotr64( __private const ulong w, __private const unsigned c )
 {
   return ( w >> c ) | ( w << ( 64 - c ) );
-}
-
-// prevents compiler optimizing out memset()
-static inline void secure_zero_memory( __private void *v, __private size_t n )
-{
-  volatile uchar *p = ( volatile uchar * )v;
-
-  while( n-- ) *p++ = 0;
 }
 
 
@@ -325,56 +316,7 @@ static int blake2b_compress( __private blake2b_state *S, __private const uchar b
 // inlen now in bytes
 int blake2b_update( __private blake2b_state *S, __private const uchar *in, __private ulong inlen )
 {
-	while( inlen > 0 )
-	{
-		size_t left = S->buflen;
-		size_t fill = 2 * BLAKE2B_BLOCKBYTES - left;
 
-		if( inlen > fill )
-		{
-			memcpy( S->buf + left, in, fill ); // Fill buffer
-			S->buflen += fill;
-			blake2b_increment_counter( S, BLAKE2B_BLOCKBYTES );
-			blake2b_compress( S, S->buf ); // Compress
-			memcpy( S->buf, S->buf + BLAKE2B_BLOCKBYTES, BLAKE2B_BLOCKBYTES ); // Shift buffer left
-			S->buflen -= BLAKE2B_BLOCKBYTES;
-			in += fill;
-			inlen -= fill;
-		}
-		else // inlen <= fill
-		{
-			memcpy( S->buf + left, in, inlen );
-			S->buflen += inlen; // Be lazy, do not compress
-			in += inlen;
-			inlen -= inlen;
-		}
-	}
-
-	return 0;
-}
-
-// Is this correct?
-int blake2b_final( __private blake2b_state *S, __private uchar *out )
-{
-	uchar buffer[BLAKE2B_OUTBYTES];
-
-	if( S->buflen > BLAKE2B_BLOCKBYTES )
-	{
-		blake2b_increment_counter( S, BLAKE2B_BLOCKBYTES );
-		blake2b_compress( S, S->buf );
-		S->buflen -= BLAKE2B_BLOCKBYTES;
-		memcpy( S->buf, S->buf + BLAKE2B_BLOCKBYTES, S->buflen );
-	}
-
-	blake2b_increment_counter( S, S->buflen );
-	blake2b_set_lastblock( S );
-	memset( S->buf + S->buflen, 0, 2 * BLAKE2B_BLOCKBYTES - S->buflen ); // Padding
-	blake2b_compress( S, S->buf );
-
-	for( int i = 0; i < 8; ++i ) // Output full hash to temp buffer
-		store64( buffer + sizeof( S->h[i] ) * i, S->h[i] );
-
-	memcpy( out, buffer, 32 );
 	return 0;
 }
 
@@ -403,7 +345,41 @@ int blake2b( __private uchar *out, __private uchar *in )
 	for( size_t i = 0; i < 8; ++i )
 		S->h[i] ^= load64( p + sizeof( S->h[i] ) * i );
 
-	blake2b_update( S, in, 80 );
-	blake2b_final( S, out );
+	ulong inlen = 80;
+	size_t left = S->buflen;
+	size_t fill = 2 * BLAKE2B_BLOCKBYTES - left;
+
+	// if statement is never entered, but leaving it gives a faster hashrate???
+	if( inlen > fill )
+	{
+		memcpy( S->buf + left, in, fill ); // Fill buffer
+		blake2b_compress( S, S->buf ); // Compress
+		memcpy( S->buf, S->buf + BLAKE2B_BLOCKBYTES, BLAKE2B_BLOCKBYTES ); // Shift buffer left
+	}
+	else // inlen <= fill
+	{
+		memcpy( S->buf + left, in, inlen );
+		S->buflen += inlen; // Be lazy, do not compress
+	}
+
+	uchar buffer[BLAKE2B_OUTBYTES];
+
+	if( S->buflen > BLAKE2B_BLOCKBYTES )
+	{
+		blake2b_increment_counter( S, BLAKE2B_BLOCKBYTES );
+		blake2b_compress( S, S->buf );
+		S->buflen -= BLAKE2B_BLOCKBYTES;
+		memcpy( S->buf, S->buf + BLAKE2B_BLOCKBYTES, S->buflen );
+	}
+
+	blake2b_increment_counter( S, S->buflen );
+	blake2b_set_lastblock( S );
+	memset( S->buf + S->buflen, 0, 2 * BLAKE2B_BLOCKBYTES - S->buflen ); // Padding
+	blake2b_compress( S, S->buf );
+
+	for( int i = 0; i < 8; ++i ) // Output full hash to temp buffer
+		store64( buffer + sizeof( S->h[i] ) * i, S->h[i] );
+
+	memcpy( out, buffer, 32 );
 	return 0;
 }
