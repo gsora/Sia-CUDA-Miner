@@ -93,21 +93,6 @@ void memcpy( __private void *dest, __private const void *src, __private size_t n
   };
 
 #pragma pack(push, 1)
-  typedef struct __blake2b_param
-  {
-	uchar  digest_length; // 1
-	uchar  key_length;	// 2
-	uchar  fanout;		// 3
-	uchar  depth;		 // 4
-	uint leaf_length;   // 8
-	ulong node_offset;   // 16
-	uchar  node_depth;	// 17
-	uchar  inner_length;  // 18
-	uchar  reserved[14];  // 32
-	uchar  salt[BLAKE2B_SALTBYTES]; // 48
-	uchar  personal[BLAKE2B_PERSONALBYTES];  // 64
-  } blake2b_param;
-
   ALIGN( 64 ) typedef struct __blake2b_state
   {
 	ulong h[8];
@@ -119,9 +104,6 @@ void memcpy( __private void *dest, __private const void *src, __private size_t n
   } blake2b_state;
 
 #pragma pack(pop)
-
-  // Streaming API
-  int blake2b_update( __private blake2b_state *S, __private const uchar *in, __private ulong inlen );
 
 // blake2-impl.c
 
@@ -313,37 +295,13 @@ static int blake2b_compress( __private blake2b_state *S, __private const uchar b
 	return 0;
 }
 
-// inlen now in bytes
-int blake2b_update( __private blake2b_state *S, __private const uchar *in, __private ulong inlen )
-{
-
-	return 0;
-}
-
 // inlen, at least, should be ulong. Others can be size_t.
 int blake2b( __private uchar *out, __private uchar *in )
 {
 	private blake2b_state S[1];
-
-	blake2b_param P[1];
-	P->digest_length = 32;
-	P->key_length = 0;
-	P->fanout = 1;
-	P->depth = 1;
-	store32( &P->leaf_length, 0 );
-	store64( &P->node_offset, 0 );
-	P->node_depth = 0;
-	P->inner_length = 0;
-	memset( P->reserved, 0, sizeof( P->reserved ) );
-	memset( P->salt,		 0, sizeof( P->salt ) );
-	memset( P->personal, 0, sizeof( P->personal ) );
 	memset( S, 0, sizeof( blake2b_state ) );
-	for( int i = 0; i < 8; ++i ) S->h[i] = blake2b_IV[i];
-	uchar *p = ( uchar * )( P );
-
-	// IV XOR ParamBlock
-	for( size_t i = 0; i < 8; ++i )
-		S->h[i] ^= load64( p + sizeof( S->h[i] ) * i );
+	for( size_t i = 0; i < 8; ++i ) S->h[i] = blake2b_IV[i];
+	S->h[0] ^= 0x0000000001010020UL;
 
 	ulong inlen = 80;
 	size_t left = S->buflen;
