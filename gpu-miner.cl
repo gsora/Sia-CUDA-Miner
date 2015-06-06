@@ -107,62 +107,14 @@ void memcpy( __private void *dest, __private const void *src, __private size_t n
 
 // blake2-impl.c
 
-static inline uint load32( __private const void *src )
-{
-  return *( uint * )( src );
-}
-
 static inline ulong load64( __private const void *src )
 {
   return *( ulong * )( src );
 }
 
-static inline void store32( __private void *dst, __private uint w )
-{
-  *( uint * )( dst ) = w;
-}
-
 static inline void store64( __private void *dst, __private ulong w )
 {
   *( ulong * )( dst ) = w;
-}
-
-static inline ulong load48( __private const void *src )
-{
-  const uchar *p = ( const uchar * )src;
-  ulong w = *p++;
-  w |= ( ulong )( *p++ ) <<  8;
-  w |= ( ulong )( *p++ ) << 16;
-  w |= ( ulong )( *p++ ) << 24;
-  w |= ( ulong )( *p++ ) << 32;
-  w |= ( ulong )( *p++ ) << 40;
-  return w;
-}
-
-static inline void store48( __private void *dst, __private ulong w )
-{
-  uchar *p = ( uchar * )dst;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w; w >>= 8;
-  *p++ = ( uchar )w;
-}
-
-static inline uint rotl32( __private const uint w, __private const unsigned c )
-{
-  return ( w << c ) | ( w >> ( 32 - c ) );
-}
-
-static inline ulong rotl64( __private const ulong w, __private const unsigned c )
-{
-  return ( w << c ) | ( w >> ( 64 - c ) );
-}
-
-static inline uint rotr32( __private const uint w, __private const unsigned c )
-{
-  return ( w >> c ) | ( w << ( 32 - c ) );
 }
 
 static inline ulong rotr64( __private const ulong w, __private const unsigned c )
@@ -195,35 +147,6 @@ __constant uchar blake2b_sigma[12][16] =
 	{	0,	1,	2,	3,	4,	5,	6,	7,	8,	9, 10, 11, 12, 13, 14, 15 } ,
 	{ 14, 10,	4,	8,	9, 15, 13,	6,	1, 12,	0,	2, 11,	7,	5,	3 }
 };
-
-static inline int blake2b_set_lastnode( __private blake2b_state *S )
-{
-	S->f[1] = ~((ulong)0);
-	return 0;
-}
-
-static inline int blake2b_clear_lastnode( __private blake2b_state *S )
-{
-	S->f[1] = ((ulong)0);
-	return 0;
-}
-
-// Some helper functions, not necessarily useful
-static inline int blake2b_set_lastblock( __private blake2b_state *S )
-{
-	if( S->last_node ) blake2b_set_lastnode( S );
-
-	S->f[0] = ~((ulong)0);
-	return 0;
-}
-
-static inline int blake2b_clear_lastblock( __private blake2b_state *S )
-{
-	if( S->last_node ) blake2b_clear_lastnode( S );
-
-	S->f[0] = ((ulong)0);
-	return 0;
-}
 
 static inline int blake2b_increment_counter( __private blake2b_state *S, __private const ulong inc )
 {
@@ -331,7 +254,7 @@ int blake2b( __private uchar *out, __private uchar *in )
 	}
 
 	blake2b_increment_counter( S, S->buflen );
-	blake2b_set_lastblock( S );
+	S->f[0] = ~((ulong)0);
 	memset( S->buf + S->buflen, 0, 2 * BLAKE2B_BLOCKBYTES - S->buflen ); // Padding
 	blake2b_compress( S, S->buf );
 
