@@ -1,17 +1,35 @@
-LFLAGS = -lOpenCL -lcurl
-CFLAGS = -std=c11 -Wall -pedantic
-OBJS = gpu-miner.o network.o
-CXX = gcc
+# Thanks to http://vivekvidyasagaran.weebly.com/moose/compiling-cuda-code-along-with-other-c-code
+CUDA_INSTALL_PATH := /opt/cuda
 
-%.o: %.c network.h
-	$(CXX) -c -s $(CFLAGS) $< -o $@
+CXX := g++
+CC := gcc
+LINK := g++ -fPIC
+NVCC  := nvcc
 
-all: gpu-miner
+# Includes
+INCLUDES = -I. -I$(CUDA_INSTALL_PATH)/include
 
-gpu-miner: $(OBJS)
-	$(CXX) $(OBJS) -o $@ $(LFLAGS)
+# Common flags
+COMMONFLAGS += $(INCLUDES) -std=c++11 -lcurl -lm -lstdc++
+NVCCFLAGS += $(COMMONFLAGS) -gencode arch=compute_52,code=sm_52
+CXXFLAGS += $(COMMONFLAGS)
+CFLAGS += $(COMMONFLAGS)
 
-clean:
-	rm gpu-miner $(OBJS)
+LIB_CUDA := -L$(CUDA_INSTALL_PATH)/lib64 -lcudart $(COMMONFLAGS)
+OBJS = gpu-cuda-miner.cu.o gpu-miner.cpp.o network.cpp.o
+TARGET = gpu-miner
+LINKLINE = $(LINK) -o $(TARGET) $(OBJS) $(LIB_CUDA)
 
-.PHONY: all gpu-miner clean
+.SUFFIXES: .c .cpp .cu .o
+
+%.c.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+%.cu.o: %.cu
+	$(NVCC) $(NVCCFLAGS) -c $< -o $@
+
+%.cpp.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(TARGET): $(OBJS) Makefile
+	$(LINKLINE)
