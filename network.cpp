@@ -7,7 +7,7 @@ using namespace std;
 
 extern double target_to_diff(const uint32_t *const target);
 
-static char bfw_url[255], submit_url[255];
+static char bfw_url[255], submit_url[255], pass[255];
 static CURL *curl;
 static char curlerrorbuffer[CURL_ERROR_SIZE];
 struct inData in;
@@ -31,7 +31,7 @@ size_t writefunc(void *ptr, size_t size, size_t nmemb, struct inData *in)
 	return new_len;
 }
 
-void network_init(const char *domain, const char *port, const char *useragent)
+void network_init(const char *domain, const char *port, const char *useragent, const char *password)
 {
 	CURLcode res;
 
@@ -42,15 +42,15 @@ void network_init(const char *domain, const char *port, const char *useragent)
 		exit(EXIT_FAILURE);
 	}
 	/* when we want to debug stuff
-	res = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-	if(res != CURLE_OK)
-	{
-		printf("verbose res=%d\n", res);
-		fprintf(stderr, "%s\n", curlerrorbuffer);
-		curl_easy_cleanup(curl);
-		exit(1);
-	}
-	*/
+	   res = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+	   if(res != CURLE_OK)
+	   {
+	   printf("verbose res=%d\n", res);
+	   fprintf(stderr, "%s\n", curlerrorbuffer);
+	   curl_easy_cleanup(curl);
+	   exit(1);
+	   }
+	   */
 	res = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerrorbuffer);
 	if(res != CURLE_OK)
 	{
@@ -66,15 +66,17 @@ void network_init(const char *domain, const char *port, const char *useragent)
 	}
 	sprintf(bfw_url, "http://%s:%s/miner/header", domain, port);
 	sprintf(submit_url, "http://%s:%s/miner/header", domain, port);
+
+	sprintf(pass, "%s", password);
 	/*
-	res = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-	if(res != CURLE_OK)
-	{
-		fprintf(stderr, "%s\n", curlerrorbuffer);
-		curl_easy_cleanup(curl);
-		exit(1);
-	}
-	*/
+	   res = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+	   if(res != CURLE_OK)
+	   {
+	   fprintf(stderr, "%s\n", curlerrorbuffer);
+	   curl_easy_cleanup(curl);
+	   exit(1);
+	   }
+	   */
 	res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc);
 	if(res != CURLE_OK)
 	{
@@ -91,13 +93,32 @@ void network_init(const char *domain, const char *port, const char *useragent)
 		exit(1);
 	}
 
-	res = curl_easy_setopt(curl, CURLOPT_USERAGENT, useragent);
+	if(useragent == NULL) {
+		res = curl_easy_setopt(curl, CURLOPT_USERAGENT, "Sia-Agent");
+	} else {
+		res = curl_easy_setopt(curl, CURLOPT_USERAGENT, useragent);
+	}
 	if(res != CURLE_OK)
 	{
 		fprintf(stderr, "%s\n", curlerrorbuffer);
 		curl_easy_cleanup(curl);
 		exit(1);
 	}
+
+	if(password != NULL) {
+		curl_easy_setopt(curl, CURLOPT_HTTPAUTH, (long)CURLAUTH_ANY);
+		char auth[255];
+		sprintf(auth, ":%s", pass);
+		res = curl_easy_setopt(curl, CURLOPT_USERPWD, auth);
+		if(res != CURLE_OK)
+		{
+			fprintf(stderr, "%s\n", curlerrorbuffer);
+			curl_easy_cleanup(curl);
+			exit(1);
+		}
+
+	}
+
 }
 
 void network_cleanup(void)
@@ -188,7 +209,7 @@ bool submit_header(uint8_t *header)
 	CURLcode res;
 	in.len = 0;
 	in.bytes = NULL;
-		
+
 	res = curl_easy_setopt(curl, CURLOPT_URL, submit_url);
 	if(res != CURLE_OK)
 	{

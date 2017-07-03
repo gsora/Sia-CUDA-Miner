@@ -206,7 +206,8 @@ int main(int argc, char *argv[])
 	cudaDeviceProp deviceProp;
 	char *serverip = (char *)"localhost";
 	char *port_number = (char *)"9980";
-	char *useragent = (char *)"Sia-Agent";
+	char *useragent = NULL;
+	char *password = NULL;
 	double hash_rate;
 	uint32_t items_per_iter = 256 * 256 * 256 * 16;
 
@@ -230,28 +231,35 @@ int main(int argc, char *argv[])
 #endif
 	printf("Using Nvidia CUDA Toolkit %d.%d\n", CUDART_VERSION / 1000, (CUDART_VERSION % 1000) / 10);
 
-	while((c = getopt(argc, argv, "hc:s:p:d:u:")) != -1)
+	while((c = getopt(argc, argv, "hc:s:p:d:u:k:l:")) != -1)
 	{
 		switch(c)
 		{
 			case 'h':
 				printf("\nUsage:\n\n");
-				printf("  -c <cycles>  : number of hashing loops between API calls\n");
-				printf("                 default: %d\n", cycles_per_iter);
-				printf("                 Increase this if your computer is freezing or locking up\n");
+				printf("  -c <cycles>  		: number of hashing loops between API calls\n");
+				printf("                 	default: %d\n", cycles_per_iter);
+				printf("                 	Increase this if your computer is freezing or locking up\n");
 				printf("\n");
-				printf("  -s <seconds> : seconds between Sia API calls and hash rate updates\n");
-				printf("                 default: %f\n", seconds_per_iter);
+				printf("  -s <seconds> 		: seconds between Sia API calls and hash rate updates\n");
+				printf("                 	default: %f\n", seconds_per_iter);
 				printf("\n");
-				printf("  -d <device>  : the device id of the card you want to use\n");
-				printf("                 default: 0\n");
+				printf("  -d <device>  		: the device id of the card you want to use\n");
+				printf("                 	default: 0\n");
 				printf("\n");
-				printf("  -u <address> : change the ip address / domain name that the miner is trying to connect to\n");
-				printf("                 default: %s\n", serverip);
+				printf("  -u <address> 		: change the ip address / domain name that the miner is trying to connect to\n");
+				printf("                 	default: %s\n", serverip);
 				printf("\n");
-				printf("  -p <port>    : change the port that the miner is trying to connect to\n");
-				printf("                 default: %s\n", port_number);
+				printf("  -p <port>    		: change the port that the miner is trying to connect to\n");
+				printf("                 	default: %s\n", port_number);
 				printf("\n");
+				printf("  -k <user-agent>	: change the user-agent string for requests\n");
+				printf("                 	default: Sia-Agent\n");
+				printf("\n");
+				printf("  -l <password>		: change the request's HTTP authentication password\n");
+				printf("                 	default: empty\n");
+				printf("\n");
+
 				exit(0);
 				break;
 			case 'c':
@@ -274,13 +282,17 @@ int main(int argc, char *argv[])
 			case 'd':
 				deviceid = strtoul(optarg, &tmp, 10);
 				break;
+			case 'k':
+				useragent = _strdup(optarg);
+				break;
+			case 'l':
+				password = _strdup(optarg);
+				break;
 		}
 	}
 
 	// Set siad URL
-	network_init(serverip, port_number, useragent);
-
-	printf("\nInitializing...\n");
+	network_init(serverip, port_number, useragent, password);
 
 	int version;
 	ret = cudaDriverGetVersion(&version);
